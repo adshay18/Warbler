@@ -318,11 +318,11 @@ def messages_destroy(message_id):
 ##############################################################################
 # Routes for adding and removing likes
 
-@app.route ('/users/add_like/<int:msg_id>', methods=["POST"])
+@app.route('/users/add_like/<int:msg_id>', methods=["POST"])
 def add_like(msg_id):
     '''Add message to user's likes'''
     if not g.user:
-        flash("Please login to leave a like", "danger")
+        flash("Access denied.", "danger")
         return redirect('/')
     
     msg = Message.query.get_or_404(msg_id)
@@ -333,6 +333,20 @@ def add_like(msg_id):
     
     return redirect('/')
     
+@app.route("/users/delete_like/<int:msg_id>", methods=["POST"])
+def delete_like(msg_id):
+    '''Remove message from user's likes'''
+    if not g.user:
+        flash("Access denied.", "danger")
+        return redirect('/')
+    
+    msg= Message.query.get_or_404(msg_id)
+    user = g.user
+    like = Likes.query.filter(Likes.message_id==msg.id, Likes.user_id==user.id).first()
+    db.session.delete(like)
+    db.session.commit()
+    
+    return redirect('/')
 ##############################################################################
 # Homepage and error pages
 
