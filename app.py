@@ -1,11 +1,12 @@
 import os
+import pdb
 
 from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
 from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
-from models import db, connect_db, User, Message
+from models import db, connect_db, User, Message, Likes
 
 CURR_USER_KEY = "curr_user"
 
@@ -152,6 +153,18 @@ def users_show(user_id):
                 .limit(100)
                 .all())
     return render_template('users/show.html', user=user, messages=messages)
+
+@app.route("/users/<int:user_id>/likes")
+def show_likes(user_id):
+    """Show list of messages this user likes"""
+    
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        
+    user = User.query.get_or_404(user_id)
+    liked_messages = user.likes
+
+    return render_template('users/likes.html', user=user, messages=liked_messages)
 
 
 @app.route('/users/<int:user_id>/following')
@@ -303,6 +316,24 @@ def messages_destroy(message_id):
 
 
 ##############################################################################
+# Routes for adding and removing likes
+
+@app.route ('/users/add_like/<int:msg_id>', methods=["POST"])
+def add_like(msg_id):
+    '''Add message to user's likes'''
+    if not g.user:
+        flash("Please login to leave a like", "danger")
+        return redirect('/')
+    
+    msg = Message.query.get_or_404(msg_id)
+    user = g.user
+    like = Likes(user_id=user.id, message_id=msg.id)
+    db.session.add(like)
+    db.session.commit()
+    
+    return redirect('/')
+    
+##############################################################################
 # Homepage and error pages
 
 
@@ -322,8 +353,10 @@ def homepage():
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     )
-        
-        return render_template('home.html', messages=messages)
+        user_likes = Likes.query.filter(Likes.user_id==g.user.id).all()
+        likes = [like.message_id for like in user_likes]
+            
+        return render_template('home.html', messages=messages, likes=likes)
 
     else:
         return render_template('home-anon.html')
