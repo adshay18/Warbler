@@ -240,6 +240,7 @@ def profile():
                 user.image_url = form.image_url.data
                 user.header_image_url = form.header_image_url.data
                 user.bio = form.bio.data
+                user.location = form.location.data
                 db.session.add(user)
                 db.session.commit()
                 
