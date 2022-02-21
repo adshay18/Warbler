@@ -31,6 +31,7 @@ db.create_all()
 # Don't have WTForms use CSRF at all, since it's a pain to test
 
 app.config['WTF_CSRF_ENABLED'] = False
+# app.config['TESTING'] = True
 
 
 class MessageViewTestCase(TestCase):
@@ -48,11 +49,23 @@ class MessageViewTestCase(TestCase):
                                     email="test@test.com",
                                     password="testuser",
                                     image_url=None)
-
+        
         db.session.commit()
+        
+    def tearDown(self):
+        '''Clean up potential bad transactions'''
+        db.session.rollback()
 
+    def test_add_message_logged_out(self):
+        # First try without logging in
+        with self.client as c:
+            resp = c.post('/messages/new', data={'text': 'Should not work'}, follow_redirects=True)
+            html = resp.get_data(as_text=True)
+            
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn('<h1>What\'s Happening?</h1>', html)
     def test_add_message(self):
-        """Can use add a message?"""
+        """Can user add a message?"""
 
         # Since we need to change the session to mimic logging in,
         # we need to use the changing-session trick:
@@ -71,3 +84,43 @@ class MessageViewTestCase(TestCase):
 
             msg = Message.query.one()
             self.assertEqual(msg.text, "Hello")
+
+
+    def test_message_destroy(self):
+        u = User.query.filter(User.username=='testuser').first()
+        
+        message = Message(
+            text = 'Test text',
+            user_id = u.id
+        )
+        db.session.add(message)
+        db.session.commit()
+        
+        with self.client as c:
+            resp = c.post(f'/messages/{message.id}/delete', follow_redirects=True)
+            html = resp.get_data(as_text=True)
+            
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn('Access unauthorized.', html)
+    def test_message_destroy(self):
+        '''Can a user delete a message?'''
+        
+        u = User.query.filter(User.username=='testuser').first()
+        
+        message = Message(
+            text = 'Test text',
+            user_id = u.id
+        )
+        db.session.add(message)
+        db.session.commit()
+       
+        # with self.client as client:
+        #     with client.session_transaction() as sess:
+        #         u = User.query.filter(User.username=='testuser').first()
+        #         message = Message.query.filter_by(user_id=u.id).first()
+        #         sess[CURR_USER_KEY] = self.testuser.id
+        #         resp = client.post(f'/messages/{message.id}/delete', follow_redirects=True)
+        #         html = resp.get_data(as_text=True)
+                
+        #         self.assertEqual(resp.status_code, 200)
+        
