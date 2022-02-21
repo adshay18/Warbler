@@ -5,6 +5,7 @@
 #    FLASK_ENV=production python -m unittest test_message_views.py
 
 
+from cgi import test
 import os
 from unittest import TestCase
 
@@ -86,7 +87,7 @@ class MessageViewTestCase(TestCase):
             self.assertEqual(msg.text, "Hello")
 
 
-    def test_message_destroy(self):
+    def test_message_destroy_logged_out(self):
         u = User.query.filter(User.username=='testuser').first()
         
         message = Message(
@@ -114,13 +115,43 @@ class MessageViewTestCase(TestCase):
         db.session.add(message)
         db.session.commit()
        
-        # with self.client as client:
-        #     with client.session_transaction() as sess:
-        #         u = User.query.filter(User.username=='testuser').first()
-        #         message = Message.query.filter_by(user_id=u.id).first()
-        #         sess[CURR_USER_KEY] = self.testuser.id
-        #         resp = client.post(f'/messages/{message.id}/delete', follow_redirects=True)
-        #         html = resp.get_data(as_text=True)
-                
-        #         self.assertEqual(resp.status_code, 200)
+        with self.client as client:
+            with client.session_transaction() as sess:
+                u = User.query.filter(User.username=='testuser').first()
+                message = Message.query.filter_by(user_id=u.id).first()
+                sess[CURR_USER_KEY] = self.testuser.id
+            resp = client.post(f'/messages/{message.id}/delete', follow_redirects=True)
+            html = resp.get_data(as_text=True)
+            
+            self.assertEqual(resp.status_code, 200)
+            self.assertNotIn('Test text', html)
         
+    def test_add_message_for_other_user(self):
+        '''Can a logged in user add a message for another user?'''
+        
+        investigator = User.signup(username="investigator",
+                                email="test2@test2.com",
+                                password="detective",
+                                image_url=None)
+        db.session.add(investigator)
+        db.session.commit()
+        
+        
+        
+        with self.client as client:
+            with client.session_transaction() as sess:
+                testuser = User.query.filter(User.username=='testuser').first()
+                sess[CURR_USER_KEY] = testuser.id
+                investigator = User.query.filter(User.username=='investigator').first()
+            resp = client.post('/messages/new', data={'text': 'fake post',
+                                                        'user_id': investigator.id}, follow_redirects=True)
+            msg = Message.query.one()
+            
+            html = resp.get_data(as_text=True)
+        
+            self.assertEqual(resp.status_code, 200)
+            
+            # check that the user_id for the new message is corrected to the logged in user 'testuser' instead of the attempted user 'investigator'
+            self.assertEqual(msg.user_id, testuser.id)
+            self.assertIn('fake post', html)
+            

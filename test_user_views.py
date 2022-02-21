@@ -76,11 +76,12 @@ class MessageViewTestCase(TestCase):
         
         
         # can user see following page of other user after logging in?
-        # with self.client as c:
-        #     resp = c.get(f'/users/{self.testuser.id}/following', follow_redirects=True)
-        #     html = resp.get_data(as_text=True)
-        #     with c.session_transaction() as sess:
-        #         sess[CURR_USER_KEY] = self.testuser.id
-                
-                
-        #         self.assertEqual(resp.status_code, 200)
+        with self.client as c:
+            
+            with c.session_transaction() as sess:
+                testuser = User.query.filter(User.username=='testuser').first()
+                sess[CURR_USER_KEY] = testuser.id
+            resp = c.get(f'/users/{investigator.id}/following', follow_redirects=True)
+            html = resp.get_data(as_text=True)
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn(f'alt="Image for {investigator.username}"', html)
