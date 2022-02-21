@@ -125,6 +125,36 @@ class MessageViewTestCase(TestCase):
             
             self.assertEqual(resp.status_code, 200)
             self.assertNotIn('Test text', html)
+            
+    def test_message_destroy_for_other_user(self):
+        '''Can a user delete another user's messages?'''
+        # create message for test user
+        u = User.query.filter(User.username=='testuser').first()
+        message = Message(
+            text = 'This message should still exist.',
+            user_id = u.id
+        )
+        db.session.add(message)
+        db.session.commit()
+        # add second user
+        investigator = User.signup(username="investigator",
+                                email="test2@test2.com",
+                                password="detective",
+                                image_url=None)
+        db.session.add(investigator)
+        db.session.commit()
+        
+        # login second user 
+        with self.client as client:
+            with client.session_transaction() as sess:
+                investigator = User.query.filter(User.username=='investigator').first()
+                testuser = User.query.filter(User.username=='testuser').first()
+                sess[CURR_USER_KEY] = investigator.id
+            msg = Message.query.one()
+            resp = client.post(f'/messages/{msg.id}/delete', follow_redirects=True)
+            html = resp.get_data(as_text=True)
+            # check that message wasn't deleted
+            self.assertIn('This message should still exist.', html)
         
     def test_add_message_for_other_user(self):
         '''Can a logged in user add a message for another user?'''
